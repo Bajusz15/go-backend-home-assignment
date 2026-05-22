@@ -16,8 +16,6 @@ import (
 	"github.com/Bajusz15/go-backend-home-assignment/internal/middleware"
 	"github.com/Bajusz15/go-backend-home-assignment/internal/repository"
 	"github.com/Bajusz15/go-backend-home-assignment/internal/service"
-	"github.com/go-chi/chi/v5"
-	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -67,43 +65,14 @@ func main() {
 	restaurantService := service.NewRestaurantService(restaurantRepo)
 	orderService := service.NewOrderService(orderRepo, restaurantRepo)
 
-	authHandler := handler.NewAuthHandler(authService)
-	restaurantHandler := handler.NewRestaurantHandler(restaurantService)
-	orderHandler := handler.NewOrderHandler(orderService)
-
-	authMW := middleware.NewAuthMiddleware(cfg.JWTSecret)
-
-	r := chi.NewRouter()
-	r.Use(chimw.Logger)
-	r.Use(chimw.Recoverer)
-	r.Use(chimw.RequestID)
-
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
+	r := handler.NewRouter(handler.Services{
+		Auth:       handler.NewAuthHandler(authService),
+		Restaurant: handler.NewRestaurantHandler(restaurantService),
+		Order:      handler.NewOrderHandler(orderService),
+		AuthMW:     middleware.NewAuthMiddleware(cfg.JWTSecret),
 	})
 
 	r.Get("/swagger/*", httpSwagger.WrapHandler)
-
-	r.Route("/auth", func(r chi.Router) {
-		r.Post("/register", authHandler.Register)
-		r.Post("/login", authHandler.Login)
-		r.With(authMW.Authenticate).Get("/who-am-i", authHandler.WhoAmI)
-	})
-
-	r.Route("/restaurants", func(r chi.Router) {
-		r.Get("/", restaurantHandler.List)
-		r.Get("/{id}", restaurantHandler.GetByID)
-		r.Get("/{id}/menu", restaurantHandler.GetMenu)
-	})
-
-	r.Route("/orders", func(r chi.Router) {
-		r.Use(authMW.Authenticate)
-		r.Post("/", authMW.RequireRole("customer", orderHandler.Create))
-		r.Get("/", authMW.RequireRole("restaurant", orderHandler.List))
-		r.Get("/{id}", authMW.RequireRole("restaurant", orderHandler.GetByID))
-		r.Patch("/{id}", authMW.RequireRole("restaurant", orderHandler.UpdateStatus))
-	})
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,

@@ -89,8 +89,21 @@ swag init -g cmd/api/main.go -o docs
 
 ## Running Tests
 
+Unit tests (no dependencies):
 ```bash
 go test ./...
+```
+
+Integration tests (requires running PostgreSQL — e.g. via `docker compose up db`):
+```bash
+go test -tags=integration ./tests/integration/... -v
+```
+
+E2E smoke test (requires running API + seeded data):
+```bash
+docker compose up --build -d
+docker compose exec api /seed
+./scripts/smoke.sh
 ```
 
 ## API Overview
