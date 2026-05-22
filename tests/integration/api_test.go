@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -166,12 +167,27 @@ func decode[T any](t *testing.T, resp *http.Response) T {
 	return v
 }
 
+func decodeAuthResponse(t *testing.T, resp *http.Response) service.AuthResponse {
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.NotContains(t, string(body), "password_hash")
+
+	var result service.AuthResponse
+	require.NoError(t, json.Unmarshal(body, &result))
+	return result
+}
+
+func decodeError(t *testing.T, resp *http.Response) handler.ErrorResponse {
+	return decode[handler.ErrorResponse](t, resp)
+}
+
 func (s *APISuite) registerCustomer(email, password, name string) string {
 	resp := s.postJSON("/auth/register", map[string]string{
 		"email": email, "password": password, "name": name,
 	}, "")
 	require.Equal(s.T(), http.StatusCreated, resp.StatusCode)
-	result := decode[service.AuthResponse](s.T(), resp)
+	result := decodeAuthResponse(s.T(), resp)
 	return result.Token
 }
 
@@ -180,7 +196,7 @@ func (s *APISuite) loginUser(email, password string) string {
 		"email": email, "password": password,
 	}, "")
 	require.Equal(s.T(), http.StatusOK, resp.StatusCode)
-	result := decode[service.AuthResponse](s.T(), resp)
+	result := decodeAuthResponse(s.T(), resp)
 	return result.Token
 }
 
@@ -190,11 +206,27 @@ func (s *APISuite) TestAuth() {
 	t := s.T()
 
 	t.Run("register and login", func(t *testing.T) {
-		token := s.registerCustomer("customer@test.com", "password123", "Test Customer")
-		assert.NotEmpty(t, token)
+		registerResp := s.postJSON("/auth/register", map[string]string{
+			"email": "customer@test.com", "password": "password123", "name": "Test Customer",
+		}, "")
+		require.Equal(t, http.StatusCreated, registerResp.StatusCode)
+		registered := decodeAuthResponse(t, registerResp)
+		assert.NotEmpty(t, registered.Token)
+		require.NotNil(t, registered.User)
+		assert.Equal(t, "customer@test.com", registered.User.Email)
+		assert.Equal(t, "Test Customer", registered.User.Name)
+		assert.Equal(t, model.RoleCustomer, registered.User.Role)
 
-		loginToken := s.loginUser("customer@test.com", "password123")
-		assert.NotEmpty(t, loginToken)
+		loginResp := s.postJSON("/auth/login", map[string]string{
+			"email": "customer@test.com", "password": "password123",
+		}, "")
+		require.Equal(t, http.StatusOK, loginResp.StatusCode)
+		loggedIn := decodeAuthResponse(t, loginResp)
+		assert.NotEmpty(t, loggedIn.Token)
+		require.NotNil(t, loggedIn.User)
+		assert.Equal(t, "customer@test.com", loggedIn.User.Email)
+		assert.Equal(t, "Test Customer", loggedIn.User.Name)
+		assert.Equal(t, model.RoleCustomer, loggedIn.User.Role)
 	})
 
 	t.Run("who-am-i", func(t *testing.T) {
@@ -213,7 +245,9 @@ func (s *APISuite) TestAuth() {
 			"email": "dup@test.com", "password": "password123", "name": "Second",
 		}, "")
 		assert.Equal(t, http.StatusConflict, resp.StatusCode)
-		resp.Body.Close()
+
+		errResp := decodeError(t, resp)
+		assert.NotEmpty(t, errResp.Error.Message)
 	})
 
 	t.Run("login with wrong password", func(t *testing.T) {
@@ -253,6 +287,15 @@ func (s *APISuite) TestRestaurants() {
 		restaurant := decode[model.RestaurantWithMenu](t, resp)
 		assert.Equal(t, "Mario's Italian", restaurant.Name)
 		assert.Len(t, restaurant.Menu, 2)
+	})
+
+	t.Run("get restaurant menu", func(t *testing.T) {
+		resp := s.get("/restaurants/b1111111-1111-1111-1111-111111111111/menu", "")
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		menu := decode[[]model.MenuItem](t, resp)
+		assert.Len(t, menu, 2)
+		assert.ElementsMatch(t, []string{"Bruschetta", "Margherita Pizza"}, []string{menu[0].Name, menu[1].Name})
 	})
 
 	t.Run("get nonexistent restaurant", func(t *testing.T) {
@@ -337,7 +380,9 @@ func (s *APISuite) TestOrderValidation() {
 			},
 		}, customerToken)
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		resp.Body.Close()
+
+		errResp := decodeError(t, resp)
+		assert.NotEmpty(t, errResp.Error.Message)
 	})
 
 	t.Run("nonexistent restaurant", func(t *testing.T) {
