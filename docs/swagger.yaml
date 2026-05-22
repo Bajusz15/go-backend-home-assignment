@@ -209,6 +209,7 @@ definitions:
     type: object
 host: localhost:8080
 info:
+  contact: {}
   description: A RESTful food ordering system where customers can browse restaurants,
     place orders, and restaurants can manage orders.
   title: Food Ordering API

@@ -2,9 +2,9 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: foodorder
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-foodorder}
     ports:
       - "5432:5432"
     volumes:
@@ -18,16 +18,11 @@ services:
   api:
     build: .
     ports:
-      - "8080:8080"
+      - "${PORT:-8080}:${PORT:-8080}"
+    env_file:
+      - .env
     environment:
-      PORT: "8080"
       DB_HOST: db
-      DB_PORT: "5432"
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: foodorder
-      DB_SSLMODE: disable
-      JWT_SECRET: super-secret-jwt-key # local development only — override via .env in production
     depends_on:
       db:
         condition: service_healthy

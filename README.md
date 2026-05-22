@@ -14,11 +14,22 @@ A RESTful food ordering system built with Go. Customers can register, browse res
 
 ### Using Docker Compose (recommended)
 
-```bash
-docker compose up --build
-```
+1. Copy the example env file:
+   ```bash
+   cp .env.example .env
+   ```
 
-This starts PostgreSQL and the API server. Migrations and seed data are applied automatically.
+2. Start the services:
+   ```bash
+   docker compose up --build
+   ```
+
+This starts PostgreSQL and the API server. Migrations are applied automatically.
+
+3. Seed test data (restaurants and menus):
+   ```bash
+   docker compose exec api /seed
+   ```
 
 The API is available at `http://localhost:8080`.
 
@@ -45,6 +56,11 @@ Prerequisites: Go 1.26+, PostgreSQL running locally.
 3. Run the server:
    ```bash
    go run ./cmd/api
+   ```
+
+4. (Optional) Seed test data:
+   ```bash
+   go run ./cmd/seed
    ```
 
 ## Environment Variables
@@ -108,7 +124,7 @@ Order statuses follow a forward-only progression: `received` → `preparing` →
 
 ## Seed Data
 
-Docker Compose seeds three restaurants with menus. To log in as a restaurant:
+After running the seed command, three restaurants with menus are available. To log in as a restaurant:
 
 | Email | Password |
 |-------|----------|
@@ -120,6 +136,7 @@ Docker Compose seeds three restaurants with menus. To log in as a restaurant:
 
 ```
 cmd/api/              Entry point, routing, server setup
+cmd/seed/             Seed command for test data (restaurants, menus)
 internal/
   config/             Environment-based configuration
   database/           Connection pool setup
@@ -128,7 +145,7 @@ internal/
   model/              Data types
   repository/         Data access layer (raw SQL)
   service/            Business logic
-migrations/           SQL migration and seed scripts
+migrations/           SQL schema migrations
 docs/                 Generated Swagger/OpenAPI files
 ```
 
