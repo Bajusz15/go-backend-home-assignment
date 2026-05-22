@@ -94,6 +94,13 @@ print(mario[0]['id'] if mario else rs[0]['id'])
 ")
 check_not_empty "got restaurant id" "$RESTAURANT_ID"
 
+echo "Get restaurant detail ..."
+RESTAURANT_RESP=$(curl -sf "$BASE_URL/restaurants/$RESTAURANT_ID")
+RESTAURANT_DETAIL_ID=$(echo "$RESTAURANT_RESP" | jq_field "['id']")
+RESTAURANT_DETAIL_MENU=$(echo "$RESTAURANT_RESP" | jq_field "['menu'].__len__()")
+check "restaurant detail id matches" "$RESTAURANT_ID" "$RESTAURANT_DETAIL_ID"
+check "restaurant detail includes menu" "true" "$([ "$RESTAURANT_DETAIL_MENU" -gt 0 ] && echo true || echo false)"
+
 echo "Get restaurant menu ..."
 MENU_RESP=$(curl -sf "$BASE_URL/restaurants/$RESTAURANT_ID/menu")
 MENU_ITEM_ID=$(echo "$MENU_RESP" | python3 -c "
