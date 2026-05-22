@@ -27,7 +27,7 @@ services:
       DB_PASSWORD: postgres
       DB_NAME: foodorder
       DB_SSLMODE: disable
-      JWT_SECRET: super-secret-jwt-key
+      JWT_SECRET: super-secret-jwt-key # local development only — override via .env in production
     depends_on:
       db:
         condition: service_healthy

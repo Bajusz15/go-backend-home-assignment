@@ -15,6 +15,7 @@ var (
 	ErrItemNotFound        = errors.New("one or more menu items not found")
 	ErrItemNotAvailable    = errors.New("one or more menu items are not available")
 	ErrItemWrongRestaurant = errors.New("all items must belong to the specified restaurant")
+	ErrRestaurantNotFound  = errors.New("restaurant not found")
 	ErrInvalidTransition   = errors.New("invalid status transition")
 	ErrOrderNotFound       = errors.New("order not found")
 	ErrNotYourOrder        = errors.New("order does not belong to your restaurant")
@@ -46,7 +47,7 @@ type UpdateStatusInput struct {
 func (s *OrderService) Create(ctx context.Context, customerID string, input CreateOrderInput) (*model.Order, error) {
 	if _, err := s.restaurantRepo.FindByID(ctx, input.RestaurantID); err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			return nil, fmt.Errorf("restaurant not found")
+			return nil, ErrRestaurantNotFound
 		}
 		return nil, err
 	}
@@ -82,7 +83,7 @@ func (s *OrderService) Create(ctx context.Context, customerID string, input Crea
 			return nil, ErrItemWrongRestaurant
 		}
 		if !mi.Available {
-			return nil, fmt.Errorf("item %q is not available", mi.Name)
+			return nil, ErrItemNotAvailable
 		}
 
 		itemTotal := mi.Price * float64(item.Quantity)

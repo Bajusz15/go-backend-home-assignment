@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -27,13 +28,13 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		header := r.Header.Get("Authorization")
 		if header == "" {
-			http.Error(w, `{"error":{"message":"missing authorization header"}}`, http.StatusUnauthorized)
+			writeErrorJSON(w, http.StatusUnauthorized, "missing authorization header")
 			return
 		}
 
 		parts := strings.SplitN(header, " ", 2)
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
-			http.Error(w, `{"error":{"message":"invalid authorization header format"}}`, http.StatusUnauthorized)
+			writeErrorJSON(w, http.StatusUnauthorized, "invalid authorization header format")
 			return
 		}
 
@@ -44,13 +45,13 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 			return []byte(m.jwtSecret), nil
 		})
 		if err != nil || !token.Valid {
-			http.Error(w, `{"error":{"message":"invalid or expired token"}}`, http.StatusUnauthorized)
+			writeErrorJSON(w, http.StatusUnauthorized, "invalid or expired token")
 			return
 		}
 
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
-			http.Error(w, `{"error":{"message":"invalid token claims"}}`, http.StatusUnauthorized)
+			writeErrorJSON(w, http.StatusUnauthorized, "invalid token claims")
 			return
 		}
 
@@ -58,7 +59,7 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 		role, _ := claims["role"].(string)
 
 		if userID == "" || role == "" {
-			http.Error(w, `{"error":{"message":"invalid token claims"}}`, http.StatusUnauthorized)
+			writeErrorJSON(w, http.StatusUnauthorized, "invalid token claims")
 			return
 		}
 
@@ -72,7 +73,7 @@ func (m *AuthMiddleware) RequireRole(role string, next http.HandlerFunc) http.Ha
 	return func(w http.ResponseWriter, r *http.Request) {
 		userRole, _ := r.Context().Value(RoleKey).(string)
 		if userRole != role {
-			http.Error(w, `{"error":{"message":"forbidden: insufficient permissions"}}`, http.StatusForbidden)
+			writeErrorJSON(w, http.StatusForbidden, "forbidden: insufficient permissions")
 			return
 		}
 		next(w, r)
@@ -87,4 +88,12 @@ func GetUserID(ctx context.Context) string {
 func GetRole(ctx context.Context) string {
 	role, _ := ctx.Value(RoleKey).(string)
 	return role
+}
+
+func writeErrorJSON(w http.ResponseWriter, status int, msg string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]map[string]string{
+		"error": {"message": msg},
+	})
 }

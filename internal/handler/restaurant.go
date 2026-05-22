@@ -18,6 +18,13 @@ func NewRestaurantHandler(restaurantService *service.RestaurantService) *Restaur
 	return &RestaurantHandler{restaurantService: restaurantService}
 }
 
+// List godoc
+// @Summary      List all restaurants
+// @Description  Returns a list of all restaurants
+// @Tags         restaurants
+// @Produce      json
+// @Success      200  {array}  model.Restaurant
+// @Router       /restaurants [get]
 func (h *RestaurantHandler) List(w http.ResponseWriter, r *http.Request) {
 	restaurants, err := h.restaurantService.List(r.Context())
 	if err != nil {
@@ -30,6 +37,15 @@ func (h *RestaurantHandler) List(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, restaurants)
 }
 
+// GetByID godoc
+// @Summary      Get restaurant details
+// @Description  Returns a restaurant with its full menu
+// @Tags         restaurants
+// @Produce      json
+// @Param        id   path      string  true  "Restaurant ID (UUID)"
+// @Success      200  {object}  model.RestaurantWithMenu
+// @Failure      404  {object}  ErrorResponse
+// @Router       /restaurants/{id} [get]
 func (h *RestaurantHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
@@ -46,6 +62,15 @@ func (h *RestaurantHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, restaurant)
 }
 
+// GetMenu godoc
+// @Summary      Get restaurant menu
+// @Description  Returns the menu items for a specific restaurant
+// @Tags         restaurants
+// @Produce      json
+// @Param        id   path      string  true  "Restaurant ID (UUID)"
+// @Success      200  {array}   model.MenuItem
+// @Failure      404  {object}  ErrorResponse
+// @Router       /restaurants/{id}/menu [get]
 func (h *RestaurantHandler) GetMenu(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 

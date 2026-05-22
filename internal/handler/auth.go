@@ -22,6 +22,17 @@ func NewAuthHandler(authService *service.AuthService) *AuthHandler {
 	}
 }
 
+// Register godoc
+// @Summary      Register a new customer
+// @Description  Creates a new customer account and returns an access token
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      service.RegisterInput  true  "Registration details"
+// @Success      201   {object}  service.AuthResponse
+// @Failure      400   {object}  ErrorResponse
+// @Failure      409   {object}  ErrorResponse
+// @Router       /auth/register [post]
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var input service.RegisterInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -47,6 +58,17 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, resp)
 }
 
+// Login godoc
+// @Summary      Authenticate a user
+// @Description  Authenticates a user and returns an access token
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      service.LoginInput  true  "Login credentials"
+// @Success      200   {object}  service.AuthResponse
+// @Failure      400   {object}  ErrorResponse
+// @Failure      401   {object}  ErrorResponse
+// @Router       /auth/login [post]
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var input service.LoginInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -72,6 +94,15 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// WhoAmI godoc
+// @Summary      Get current user
+// @Description  Returns the currently authenticated user
+// @Tags         auth
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  model.User
+// @Failure      401  {object}  ErrorResponse
+// @Router       /auth/who-am-i [get]
 func (h *AuthHandler) WhoAmI(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 

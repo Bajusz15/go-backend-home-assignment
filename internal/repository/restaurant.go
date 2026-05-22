@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/Bajusz15/go-backend-home-assignment/internal/model"
+	"github.com/lib/pq"
 )
 
 type RestaurantRepository struct {
@@ -89,7 +90,7 @@ func (r *RestaurantRepository) FindMenuItemsByIDs(ctx context.Context, ids []str
 	query := `SELECT id, restaurant_id, name, description, price, available, created_at
 	           FROM menu_items WHERE id = ANY($1)`
 
-	rows, err := r.db.QueryContext(ctx, query, pqStringArray(ids))
+	rows, err := r.db.QueryContext(ctx, query, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
@@ -104,25 +105,4 @@ func (r *RestaurantRepository) FindMenuItemsByIDs(ctx context.Context, ids []str
 		items = append(items, item)
 	}
 	return items, rows.Err()
-}
-
-type stringArray []string
-
-func pqStringArray(a []string) stringArray {
-	return stringArray(a)
-}
-
-func (a stringArray) Value() (interface{}, error) {
-	return "{" + joinStrings(a) + "}", nil
-}
-
-func joinStrings(a []string) string {
-	if len(a) == 0 {
-		return ""
-	}
-	result := `"` + a[0] + `"`
-	for _, s := range a[1:] {
-		result += `,"` + s + `"`
-	}
-	return result
 }
