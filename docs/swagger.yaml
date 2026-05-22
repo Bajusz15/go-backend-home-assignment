@@ -1,0 +1,496 @@
+basePath: /
+definitions:
+  handler.ErrorBody:
+    properties:
+      message:
+        type: string
+    type: object
+  handler.ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/handler.ErrorBody'
+    type: object
+  model.MenuItem:
+    properties:
+      available:
+        type: boolean
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      price:
+        type: number
+      restaurant_id:
+        type: string
+    type: object
+  model.Order:
+    properties:
+      created_at:
+        type: string
+      customer_id:
+        type: string
+      id:
+        type: string
+      restaurant_id:
+        type: string
+      status:
+        $ref: '#/definitions/model.OrderStatus'
+      total_price:
+        type: number
+      updated_at:
+        type: string
+    type: object
+  model.OrderDetail:
+    properties:
+      created_at:
+        type: string
+      customer:
+        $ref: '#/definitions/model.User'
+      customer_id:
+        type: string
+      id:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/model.OrderItem'
+        type: array
+      restaurant_id:
+        type: string
+      status:
+        $ref: '#/definitions/model.OrderStatus'
+      total_price:
+        type: number
+      updated_at:
+        type: string
+    type: object
+  model.OrderItem:
+    properties:
+      id:
+        type: string
+      menu_item_id:
+        type: string
+      order_id:
+        type: string
+      price_at_time:
+        type: number
+      quantity:
+        type: integer
+    type: object
+  model.OrderStatus:
+    enum:
+    - received
+    - preparing
+    - ready
+    - delivered
+    type: string
+    x-enum-varnames:
+    - OrderStatusReceived
+    - OrderStatusPreparing
+    - OrderStatusReady
+    - OrderStatusDelivered
+  model.Restaurant:
+    properties:
+      address:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  model.RestaurantWithMenu:
+    properties:
+      address:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      menu:
+        items:
+          $ref: '#/definitions/model.MenuItem'
+        type: array
+      name:
+        type: string
+    type: object
+  model.Role:
+    enum:
+    - customer
+    - restaurant
+    type: string
+    x-enum-varnames:
+    - RoleCustomer
+    - RoleRestaurant
+  model.User:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      role:
+        $ref: '#/definitions/model.Role'
+    type: object
+  service.AuthResponse:
+    properties:
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/model.User'
+    type: object
+  service.CreateOrderInput:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/service.CreateOrderItem'
+        minItems: 1
+        type: array
+      restaurant_id:
+        type: string
+    required:
+    - items
+    - restaurant_id
+    type: object
+  service.CreateOrderItem:
+    properties:
+      menu_item_id:
+        type: string
+      quantity:
+        minimum: 1
+        type: integer
+    required:
+    - menu_item_id
+    - quantity
+    type: object
+  service.LoginInput:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  service.RegisterInput:
+    properties:
+      email:
+        type: string
+      name:
+        maxLength: 255
+        minLength: 1
+        type: string
+      password:
+        minLength: 8
+        type: string
+    required:
+    - email
+    - name
+    - password
+    type: object
+  service.UpdateStatusInput:
+    properties:
+      status:
+        type: string
+    required:
+    - status
+    type: object
+host: localhost:8080
+info:
+  description: A RESTful food ordering system where customers can browse restaurants,
+    place orders, and restaurants can manage orders.
+  title: Food Ordering API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticates a user and returns an access token
+      parameters:
+      - description: Login credentials
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/service.LoginInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.AuthResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: Authenticate a user
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new customer account and returns an access token
+      parameters:
+      - description: Registration details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/service.RegisterInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/service.AuthResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: Register a new customer
+      tags:
+      - auth
+  /auth/who-am-i:
+    get:
+      description: Returns the currently authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.User'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get current user
+      tags:
+      - auth
+  /orders:
+    get:
+      description: Returns all orders placed with the authenticated restaurant
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Order'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List restaurant orders
+      tags:
+      - orders
+    post:
+      consumes:
+      - application/json
+      description: Allows a customer to place an order for items from a restaurant's
+        menu
+      parameters:
+      - description: Order details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/service.CreateOrderInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.Order'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Place a new order
+      tags:
+      - orders
+  /orders/{id}:
+    get:
+      description: Returns order details including customer info and order items
+      parameters:
+      - description: Order ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.OrderDetail'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get order details
+      tags:
+      - orders
+    patch:
+      consumes:
+      - application/json
+      description: Updates the status of an order (received -> preparing -> ready
+        -> delivered)
+      parameters:
+      - description: Order ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: New status
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/service.UpdateStatusInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Order'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update order status
+      tags:
+      - orders
+  /restaurants:
+    get:
+      description: Returns a list of all restaurants
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Restaurant'
+            type: array
+      summary: List all restaurants
+      tags:
+      - restaurants
+  /restaurants/{id}:
+    get:
+      description: Returns a restaurant with its full menu
+      parameters:
+      - description: Restaurant ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.RestaurantWithMenu'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: Get restaurant details
+      tags:
+      - restaurants
+  /restaurants/{id}/menu:
+    get:
+      description: Returns the menu items for a specific restaurant
+      parameters:
+      - description: Restaurant ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.MenuItem'
+            type: array
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: Get restaurant menu
+      tags:
+      - restaurants
+securityDefinitions:
+  BearerAuth:
+    description: 'Enter your bearer token as: Bearer <token>'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
