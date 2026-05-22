@@ -164,6 +164,21 @@ func TestOrderService_Create(t *testing.T) {
 		assert.Equal(t, "rest-1", order.RestaurantID)
 	})
 
+	t.Run("allows repeated menu items", func(t *testing.T) {
+		svc, _, _ := setupOrderTest()
+
+		order, err := svc.Create(context.Background(), "customer-1", CreateOrderInput{
+			RestaurantID: "rest-1",
+			Items: []CreateOrderItem{
+				{MenuItemID: "item-1", Quantity: 1},
+				{MenuItemID: "item-1", Quantity: 2},
+			},
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, 38.97, order.TotalPrice)
+	})
+
 	t.Run("restaurant not found", func(t *testing.T) {
 		svc, _, _ := setupOrderTest()
 
@@ -285,5 +300,27 @@ func TestOrderService_UpdateStatus(t *testing.T) {
 		_, err := svc.UpdateStatus(context.Background(), "rest-user-1", "order-1", UpdateStatusInput{Status: "cancelled"})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid status")
+	})
+}
+
+func TestOrderService_GetDetail(t *testing.T) {
+	t.Run("order not found", func(t *testing.T) {
+		svc, _, _ := setupOrderTest()
+
+		_, err := svc.GetDetail(context.Background(), "rest-user-1", "missing-order")
+
+		assert.ErrorIs(t, err, ErrOrderNotFound)
+	})
+
+	t.Run("rejects other restaurant order", func(t *testing.T) {
+		svc, _, orderRepo := setupOrderTest()
+		orderRepo.orders["other-order"] = &model.Order{
+			ID:           "other-order",
+			RestaurantID: "rest-2",
+		}
+
+		_, err := svc.GetDetail(context.Background(), "rest-user-1", "other-order")
+
+		assert.ErrorIs(t, err, ErrNotYourOrder)
 	})
 }

@@ -13,7 +13,9 @@ import (
 
 const testSecret = "test-secret"
 
-func generateTestToken(userID, role string, expired bool) string {
+func generateTestToken(t *testing.T, userID, role string, expired bool) string {
+	t.Helper()
+
 	exp := time.Now().Add(time.Hour)
 	if expired {
 		exp = time.Now().Add(-time.Hour)
@@ -23,7 +25,8 @@ func generateTestToken(userID, role string, expired bool) string {
 		"role": role,
 		"exp":  exp.Unix(),
 	})
-	s, _ := token.SignedString([]byte(testSecret))
+	s, err := token.SignedString([]byte(testSecret))
+	assert.NoError(t, err)
 	return s
 }
 
@@ -35,7 +38,7 @@ func TestAuthenticate(t *testing.T) {
 
 	t.Run("valid token", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		req.Header.Set("Authorization", "Bearer "+generateTestToken("user-1", "customer", false))
+		req.Header.Set("Authorization", "Bearer "+generateTestToken(t, "user-1", "customer", false))
 		rr := httptest.NewRecorder()
 
 		handler.ServeHTTP(rr, req)
@@ -65,7 +68,7 @@ func TestAuthenticate(t *testing.T) {
 
 	t.Run("expired token", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		req.Header.Set("Authorization", "Bearer "+generateTestToken("user-1", "customer", true))
+		req.Header.Set("Authorization", "Bearer "+generateTestToken(t, "user-1", "customer", true))
 		rr := httptest.NewRecorder()
 
 		handler.ServeHTTP(rr, req)
@@ -80,7 +83,8 @@ func TestAuthenticate(t *testing.T) {
 			"role": "customer",
 			"exp":  time.Now().Add(time.Hour).Unix(),
 		})
-		s, _ := token.SignedString([]byte("wrong-secret"))
+		s, err := token.SignedString([]byte("wrong-secret"))
+		assert.NoError(t, err)
 
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Authorization", "Bearer "+s)
@@ -100,7 +104,7 @@ func TestAuthenticate(t *testing.T) {
 		}))
 
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		req.Header.Set("Authorization", "Bearer "+generateTestToken("user-42", "restaurant", false))
+		req.Header.Set("Authorization", "Bearer "+generateTestToken(t, "user-42", "restaurant", false))
 		rr := httptest.NewRecorder()
 
 		innerHandler.ServeHTTP(rr, req)

@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/Bajusz15/go-backend-home-assignment/internal/model"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -60,18 +61,6 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*model.User, 
 }
 
 func isUniqueViolation(err error) bool {
-	return err != nil && contains(err.Error(), "duplicate key value violates unique constraint")
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && searchString(s, substr)
-}
-
-func searchString(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }

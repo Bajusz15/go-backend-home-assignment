@@ -2,6 +2,7 @@
 set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost:8080}"
+CUSTOMER_EMAIL="${SMOKE_CUSTOMER_EMAIL:-smoke-$(date +%s)@test.com}"
 PASS=0
 FAIL=0
 
@@ -11,10 +12,10 @@ check() {
   local name="$1" expected="$2" actual="$3"
   if [ "$actual" = "$expected" ]; then
     echo "  ✓ $name"
-    ((PASS++))
+    PASS=$((PASS + 1))
   else
     echo "  ✗ $name (expected $expected, got $actual)"
-    ((FAIL++))
+    FAIL=$((FAIL + 1))
   fi
 }
 
@@ -22,10 +23,10 @@ check_not_empty() {
   local name="$1" value="$2"
   if [ -n "$value" ]; then
     echo "  ✓ $name"
-    ((PASS++))
+    PASS=$((PASS + 1))
   else
     echo "  ✗ $name (empty)"
-    ((FAIL++))
+    FAIL=$((FAIL + 1))
   fi
 }
 
@@ -39,7 +40,7 @@ echo "Waiting for API at $BASE_URL ..."
 for i in $(seq 1 30); do
   if curl -sf "$BASE_URL/health" > /dev/null 2>&1; then
     echo "  ✓ API is healthy"
-    ((PASS++))
+    PASS=$((PASS + 1))
     break
   fi
   if [ "$i" -eq 30 ]; then
@@ -54,7 +55,7 @@ done
 echo "Register customer ..."
 REGISTER_RESP=$(curl -sf -X POST "$BASE_URL/auth/register" \
   -H 'Content-Type: application/json' \
-  -d '{"email":"smoke@test.com","password":"password123","name":"Smoke Tester"}')
+  -d "{\"email\":\"$CUSTOMER_EMAIL\",\"password\":\"password123\",\"name\":\"Smoke Tester\"}")
 CUSTOMER_TOKEN=$(echo "$REGISTER_RESP" | jq_field "['token']")
 check "register succeeds" "0" "$?"
 check_not_empty "token is present" "$CUSTOMER_TOKEN"
@@ -64,7 +65,7 @@ check_not_empty "token is present" "$CUSTOMER_TOKEN"
 echo "Login customer ..."
 LOGIN_RESP=$(curl -sf -X POST "$BASE_URL/auth/login" \
   -H 'Content-Type: application/json' \
-  -d '{"email":"smoke@test.com","password":"password123"}')
+  -d "{\"email\":\"$CUSTOMER_EMAIL\",\"password\":\"password123\"}")
 LOGIN_TOKEN=$(echo "$LOGIN_RESP" | jq_field "['token']")
 check_not_empty "login returns token" "$LOGIN_TOKEN"
 
@@ -75,7 +76,7 @@ WHOAMI_RESP=$(curl -sf "$BASE_URL/auth/who-am-i" \
   -H "Authorization: Bearer $CUSTOMER_TOKEN")
 WHOAMI_EMAIL=$(echo "$WHOAMI_RESP" | jq_field "['email']")
 WHOAMI_ROLE=$(echo "$WHOAMI_RESP" | jq_field "['role']")
-check "email matches" "smoke@test.com" "$WHOAMI_EMAIL"
+check "email matches" "$CUSTOMER_EMAIL" "$WHOAMI_EMAIL"
 check "role is customer" "customer" "$WHOAMI_ROLE"
 
 # --- 5. list restaurants, pick Mario's, get a menu item ---
@@ -141,7 +142,7 @@ DETAIL_RESP=$(curl -sf "$BASE_URL/orders/$ORDER_ID" \
   -H "Authorization: Bearer $REST_TOKEN")
 DETAIL_CUSTOMER=$(echo "$DETAIL_RESP" | jq_field "['customer']['email']")
 DETAIL_ITEMS=$(echo "$DETAIL_RESP" | jq_field "['items'].__len__()")
-check "order has customer email" "smoke@test.com" "$DETAIL_CUSTOMER"
+check "order has customer email" "$CUSTOMER_EMAIL" "$DETAIL_CUSTOMER"
 check "order has items" "true" "$([ "$DETAIL_ITEMS" -gt 0 ] && echo true || echo false)"
 
 # --- 10. advance order status ---

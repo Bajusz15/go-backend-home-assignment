@@ -94,9 +94,10 @@ Unit tests (no dependencies):
 go test ./...
 ```
 
-Integration tests (requires running PostgreSQL — e.g. via `docker compose up db`):
+Integration tests require a PostgreSQL database they may truncate. For the local Compose database:
 ```bash
-go test -tags=integration ./tests/integration/... -v
+TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/foodorder?sslmode=disable \
+  go test -tags=integration ./tests/integration/... -v
 ```
 
 E2E smoke test (requires running API + seeded data):
@@ -173,8 +174,8 @@ docs/                 Generated Swagger/OpenAPI files
 
 ## What I'd Improve With More Time
 
-- **Integration tests**: Add end-to-end tests using `httptest` with a real test database.
 - **Real-time updates**: SSE endpoint for customers to receive live order status changes.
+- **Money representation**: Store and calculate prices as integer minor units or a decimal type instead of `float64`.
 - **Pagination**: Add cursor-based pagination to list endpoints.
 - **Request logging**: Structured request/response logging with correlation IDs.
 - **Graceful migration handling**: Separate migration CLI command instead of running on startup.

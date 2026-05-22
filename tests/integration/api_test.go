@@ -12,7 +12,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Bajusz15/go-backend-home-assignment/internal/config"
 	"github.com/Bajusz15/go-backend-home-assignment/internal/handler"
 	"github.com/Bajusz15/go-backend-home-assignment/internal/middleware"
 	"github.com/Bajusz15/go-backend-home-assignment/internal/model"
@@ -39,11 +38,14 @@ func TestAPISuite(t *testing.T) {
 }
 
 func (s *APISuite) SetupSuite() {
-	os.Setenv("JWT_SECRET", "test-integration-secret")
-	cfg, err := config.Load()
-	require.NoError(s.T(), err)
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		s.T().Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+	const jwtSecret = "test-integration-secret"
 
-	s.db, err = sql.Open("pgx", cfg.DatabaseURL)
+	var err error
+	s.db, err = sql.Open("pgx", databaseURL)
 	require.NoError(s.T(), err)
 	require.NoError(s.T(), s.db.Ping())
 
@@ -59,7 +61,7 @@ func (s *APISuite) SetupSuite() {
 	restaurantRepo := repository.NewRestaurantRepository(s.db)
 	orderRepo := repository.NewOrderRepository(s.db)
 
-	authService := service.NewAuthService(userRepo, cfg.JWTSecret)
+	authService := service.NewAuthService(userRepo, jwtSecret)
 	restaurantService := service.NewRestaurantService(restaurantRepo)
 	orderService := service.NewOrderService(orderRepo, restaurantRepo)
 
@@ -67,7 +69,7 @@ func (s *APISuite) SetupSuite() {
 		Auth:       handler.NewAuthHandler(authService),
 		Restaurant: handler.NewRestaurantHandler(restaurantService),
 		Order:      handler.NewOrderHandler(orderService),
-		AuthMW:     middleware.NewAuthMiddleware(cfg.JWTSecret),
+		AuthMW:     middleware.NewAuthMiddleware(jwtSecret),
 	})
 
 	s.server = httptest.NewServer(r)
@@ -85,36 +87,40 @@ func (s *APISuite) SetupTest() {
 }
 
 func (s *APISuite) cleanup() {
-	ctx := context.Background()
-	s.db.ExecContext(ctx, "DELETE FROM order_items")
-	s.db.ExecContext(ctx, "DELETE FROM orders")
-	s.db.ExecContext(ctx, "DELETE FROM menu_items")
-	s.db.ExecContext(ctx, "DELETE FROM restaurants")
-	s.db.ExecContext(ctx, "DELETE FROM users")
+	_, err := s.db.ExecContext(
+		context.Background(),
+		"TRUNCATE order_items, orders, menu_items, restaurants, users CASCADE",
+	)
+	require.NoError(s.T(), err)
 }
 
 func (s *APISuite) seedRestaurant() {
 	ctx := context.Background()
-	hash, _ := bcrypt.GenerateFromPassword([]byte("restaurant123"), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte("restaurant123"), bcrypt.DefaultCost)
+	require.NoError(s.T(), err)
 
-	s.db.ExecContext(ctx,
+	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO users (id, email, password_hash, name, role) VALUES ($1, $2, $3, $4, 'restaurant')`,
 		"a1111111-1111-1111-1111-111111111111", "mario@test.com", string(hash), "Mario")
+	require.NoError(s.T(), err)
 
-	s.db.ExecContext(ctx,
+	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO restaurants (id, user_id, name, description, address) VALUES ($1, $2, $3, $4, $5)`,
 		"b1111111-1111-1111-1111-111111111111", "a1111111-1111-1111-1111-111111111111",
 		"Mario's Italian", "Test restaurant", "123 Main St")
+	require.NoError(s.T(), err)
 
-	s.db.ExecContext(ctx,
+	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO menu_items (id, restaurant_id, name, description, price, available) VALUES ($1, $2, $3, $4, $5, $6)`,
 		"c1111111-1111-1111-1111-111111111111", "b1111111-1111-1111-1111-111111111111",
 		"Margherita Pizza", "Classic pizza", 12.99, true)
+	require.NoError(s.T(), err)
 
-	s.db.ExecContext(ctx,
+	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO menu_items (id, restaurant_id, name, description, price, available) VALUES ($1, $2, $3, $4, $5, $6)`,
 		"c2222222-2222-2222-2222-222222222222", "b1111111-1111-1111-1111-111111111111",
 		"Bruschetta", "Unavailable item", 7.50, false)
+	require.NoError(s.T(), err)
 }
 
 // --- Helpers ---
@@ -350,6 +356,26 @@ func (s *APISuite) TestOrderValidation() {
 			"restaurant_id": "b1111111-1111-1111-1111-111111111111",
 			"items": []map[string]any{
 				{"menu_item_id": "00000000-0000-0000-0000-000000000000", "quantity": 1},
+			},
+		}, customerToken)
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		resp.Body.Close()
+	})
+
+	t.Run("empty item list", func(t *testing.T) {
+		resp := s.postJSON("/orders", map[string]any{
+			"restaurant_id": "b1111111-1111-1111-1111-111111111111",
+			"items":         []map[string]any{},
+		}, customerToken)
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		resp.Body.Close()
+	})
+
+	t.Run("invalid item quantity", func(t *testing.T) {
+		resp := s.postJSON("/orders", map[string]any{
+			"restaurant_id": "b1111111-1111-1111-1111-111111111111",
+			"items": []map[string]any{
+				{"menu_item_id": "c1111111-1111-1111-1111-111111111111", "quantity": 0},
 			},
 		}, customerToken)
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)

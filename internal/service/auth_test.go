@@ -61,6 +61,8 @@ func TestAuthService_Register(t *testing.T) {
 		assert.Equal(t, "test@example.com", resp.User.Email)
 		assert.Equal(t, model.RoleCustomer, resp.User.Role)
 		assert.Equal(t, "Test User", resp.User.Name)
+		assert.NotEqual(t, "password123", resp.User.PasswordHash)
+		assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(resp.User.PasswordHash), []byte("password123")))
 	})
 
 	t.Run("duplicate email", func(t *testing.T) {
@@ -78,7 +80,8 @@ func TestAuthService_Login(t *testing.T) {
 	repo := newMockUserRepo()
 	svc := NewAuthService(repo, "test-secret")
 
-	hash, _ := bcrypt.GenerateFromPassword([]byte("correctpassword"), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte("correctpassword"), bcrypt.DefaultCost)
+	require.NoError(t, err)
 	repo.users["user@example.com"] = &model.User{
 		ID:           "user-1",
 		Email:        "user@example.com",

@@ -67,10 +67,6 @@ func (s *OrderService) Create(ctx context.Context, customerID string, input Crea
 		menuItemMap[mi.ID] = mi
 	}
 
-	if len(menuItemMap) != len(input.Items) {
-		return nil, ErrItemNotFound
-	}
-
 	var totalPrice float64
 	orderItems := make([]model.OrderItem, 0, len(input.Items))
 

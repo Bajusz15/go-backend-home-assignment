@@ -10,7 +10,7 @@ lint:
 	go vet ./...
 
 integration: up-db
-	go test -tags=integration ./tests/integration/... -race -v
+	TEST_DATABASE_URL=$${TEST_DATABASE_URL:-postgres://postgres:postgres@localhost:5432/foodorder?sslmode=disable} go test -tags=integration ./tests/integration/... -race -v
 
 smoke: up seed
 	./scripts/smoke.sh
