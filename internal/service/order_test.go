@@ -68,7 +68,8 @@ func (m *mockRestaurantRepo) FindMenuItemsByIDs(_ context.Context, ids []string)
 }
 
 type mockOrderRepo struct {
-	orders map[string]*model.Order
+	orders                map[string]*model.Order
+	statusChangedOnUpdate bool
 }
 
 func newMockOrderRepo() *mockOrderRepo {
@@ -107,10 +108,13 @@ func (m *mockOrderRepo) ListByRestaurantID(_ context.Context, restaurantID strin
 	return result, nil
 }
 
-func (m *mockOrderRepo) UpdateStatus(_ context.Context, id string, status model.OrderStatus) (*model.Order, error) {
+func (m *mockOrderRepo) UpdateStatus(_ context.Context, id string, expected, status model.OrderStatus) (*model.Order, error) {
 	o, ok := m.orders[id]
 	if !ok {
 		return nil, repository.ErrNotFound
+	}
+	if m.statusChangedOnUpdate || o.Status != expected {
+		return nil, repository.ErrConflict
 	}
 	o.Status = status
 	return o, nil
@@ -300,6 +304,20 @@ func TestOrderService_UpdateStatus(t *testing.T) {
 		_, err := svc.UpdateStatus(context.Background(), "rest-user-1", "order-1", UpdateStatusInput{Status: "cancelled"})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid status")
+	})
+
+	t.Run("status changed before update", func(t *testing.T) {
+		svc, _, orderRepo := setupOrderTest()
+		orderRepo.orders["order-5"] = &model.Order{
+			ID:           "order-5",
+			RestaurantID: "rest-1",
+			Status:       model.OrderStatusReceived,
+		}
+		orderRepo.statusChangedOnUpdate = true
+
+		_, err := svc.UpdateStatus(context.Background(), "rest-user-1", "order-5", UpdateStatusInput{Status: "preparing"})
+
+		assert.ErrorIs(t, err, ErrStatusChanged)
 	})
 }
 

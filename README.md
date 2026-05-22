@@ -1,75 +1,49 @@
 # Food Ordering API
 
-A RESTful food ordering system built with Go. Customers can register, browse restaurants, and place orders. Restaurants can manage incoming orders and update their status.
+This project is a small food ordering API written in Go. Customers can create an account, browse restaurant menus, and place orders. Restaurant users can read the orders placed with their restaurant and move them through the supported status flow.
 
-## Tech Stack
+## Implementation
 
-- **Go** with [Chi](https://github.com/go-chi/chi) router (stdlib `http.Handler` compatible)
-- **PostgreSQL** with `database/sql` and [pgx](https://github.com/jackc/pgx) driver (no ORM — raw SQL)
-- **JWT** authentication via [golang-jwt](https://github.com/golang-jwt/jwt)
-- **Swagger/OpenAPI** docs via [swaggo/swag](https://github.com/swaggo/swag)
-- **Docker Compose** for local development
+- Go with Chi on top of the standard `net/http` handler model
+- PostgreSQL through `database/sql` and the pgx driver
+- JWT bearer tokens for authentication
+- SQL migrations run at API startup
+- Swagger docs generated with `swaggo/swag`
 
-## Quick Start
+The code is split into HTTP handlers, services, and repositories. Services hold the order/authentication rules and depend on narrow repository interfaces so the business rules can be tested without a database.
 
-### Using Docker Compose (recommended)
+## Setup
 
-1. Copy the example env file:
+### Database
+
+Docker Compose starts PostgreSQL and creates the configured database from `DB_NAME` on first startup. The API applies the schema migration when it starts.
+
+### Application
+
+1. Create a local environment file:
    ```bash
    cp .env.example .env
    ```
 
-2. Start the services:
+2. Start PostgreSQL and the API:
    ```bash
    docker compose up --build
    ```
 
-This starts PostgreSQL and the API server. Migrations are applied automatically.
-
-3. Seed test data (restaurants and menus):
+3. In another terminal, seed restaurants and menus:
    ```bash
    docker compose exec api /seed
    ```
 
-The API is available at `http://localhost:8080`.
-
-### Running Locally
-
-Prerequisites: Go 1.26+, PostgreSQL running locally.
-
-1. Create the database:
-   ```bash
-   createdb foodorder
-   ```
-
-2. Set environment variables (or copy `.env.example` to `.env` and source it):
-   ```bash
-   export JWT_SECRET=your-secret-key
-   export DB_HOST=localhost
-   export DB_PORT=5432
-   export DB_USER=postgres
-   export DB_PASSWORD=postgres
-   export DB_NAME=foodorder
-   export DB_SSLMODE=disable
-   ```
-
-3. Run the server:
-   ```bash
-   go run ./cmd/api
-   ```
-
-4. (Optional) Seed test data:
-   ```bash
-   go run ./cmd/seed
-   ```
+The API listens on `http://localhost:8080` by default.
 
 ## Environment Variables
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `JWT_SECRET` | Yes | — | Secret key for signing JWT tokens |
+| `JWT_SECRET` | Yes | - | Secret used to sign JWT tokens |
 | `PORT` | No | `8080` | HTTP server port |
-| `DATABASE_URL` | No | — | Full PostgreSQL connection string (overrides individual DB_* vars) |
+| `DATABASE_URL` | No | - | Full PostgreSQL connection string; overrides the individual `DB_*` variables |
 | `DB_HOST` | No | `localhost` | Database host |
 | `DB_PORT` | No | `5432` | Database port |
 | `DB_USER` | No | `postgres` | Database user |
@@ -77,37 +51,37 @@ Prerequisites: Go 1.26+, PostgreSQL running locally.
 | `DB_NAME` | No | `foodorder` | Database name |
 | `DB_SSLMODE` | No | `disable` | PostgreSQL SSL mode |
 
-## API Documentation
+## API Docs
 
-Swagger UI is available at: **http://localhost:8080/swagger/index.html**
+Swagger UI is served at `http://localhost:8080/swagger/index.html`.
 
-To regenerate docs after modifying handler annotations:
+Generated Swagger files are committed under `docs/`. Regenerate them after changing handler annotations with:
 ```bash
 go install github.com/swaggo/swag/cmd/swag@latest
 swag init -g cmd/api/main.go -o docs
 ```
 
-## Running Tests
+## Tests
 
-Unit tests (no dependencies):
+The default test suite has no external service dependency:
 ```bash
 go test ./...
 ```
 
-Integration tests require a PostgreSQL database they may truncate. For the local Compose database:
+The tagged API integration suite uses a real PostgreSQL database and truncates its tables between tests. For the local Compose database:
 ```bash
 TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/foodorder?sslmode=disable \
   go test -tags=integration ./tests/integration/... -v
 ```
 
-E2E smoke test (requires running API + seeded data):
+There is also a small smoke script for the running Dockerized API:
 ```bash
 docker compose up --build -d
 docker compose exec api /seed
 ./scripts/smoke.sh
 ```
 
-## API Overview
+## API
 
 ### Authentication
 
@@ -115,9 +89,9 @@ docker compose exec api /seed
 |--------|------|------|-------------|
 | POST | `/auth/register` | No | Register a new customer |
 | POST | `/auth/login` | No | Login and receive a JWT token |
-| GET | `/auth/who-am-i` | Yes | Get current user info |
+| GET | `/auth/who-am-i` | Yes | Return the authenticated user |
 
-### Restaurants (public)
+### Restaurants
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -134,11 +108,13 @@ docker compose exec api /seed
 | GET | `/orders/{id}` | Restaurant | Get order details with customer and items |
 | PATCH | `/orders/{id}` | Restaurant | Update order status |
 
-Order statuses follow a forward-only progression: `received` → `preparing` → `ready` → `delivered`.
+Order statuses move forward only: `received` -> `preparing` -> `ready` -> `delivered`.
 
 ## Seed Data
 
-After running the seed command, three restaurants with menus are available. To log in as a restaurant:
+Customer accounts are created through `/auth/register`. Restaurant accounts are seeded so the restaurant-side endpoints can be exercised without adding account-management endpoints to the assignment scope.
+
+After running the seed command, these restaurant credentials are available:
 
 | Email | Password |
 |-------|----------|
@@ -146,37 +122,32 @@ After running the seed command, three restaurants with menus are available. To l
 | `sakura@restaurant.com` | `restaurant123` |
 | `ali@restaurant.com` | `restaurant123` |
 
-## Project Structure
+## Layout
 
 ```
-cmd/api/              Entry point, routing, server setup
-cmd/seed/             Seed command for test data (restaurants, menus)
+cmd/api/              API entry point and server setup
+cmd/seed/             Local seed command for restaurants and menus
 internal/
-  config/             Environment-based configuration
-  database/           Connection pool setup
-  handler/            HTTP handlers (request parsing, validation, response)
-  middleware/         JWT authentication and role authorization
-  model/              Data types
-  repository/         Data access layer (raw SQL)
-  service/            Business logic
-migrations/           SQL schema migrations
-docs/                 Generated Swagger/OpenAPI files
+  handler/            Routing, HTTP handlers, request validation
+  service/            Authentication and ordering rules
+  repository/         SQL data access
+  middleware/         JWT authentication and role checks
+  model/              API and persistence-facing data types
+  config/, database/  Environment config and database connection setup
+migrations/           Schema migration
+docs/                 Generated Swagger files
 ```
 
-## Design Decisions
+## Notes
 
-- **Raw SQL over ORM**: Chose `database/sql` with pgx for full control over queries. No hidden behavior, easy to reason about, and idiomatic Go.
-- **Chi router**: Uses stdlib `http.Handler`/`http.HandlerFunc` interfaces. No framework lock-in.
-- **Unified auth**: Single `users` table with a `role` field. Customers register via API; restaurant accounts are seeded. Both use the same login endpoint.
-- **Server-side price calculation**: Order total is computed from current menu prices at order time. `price_at_time` is stored per order item so price changes don't affect historical orders.
-- **Forward-only status transitions**: Prevents invalid state changes (e.g., cannot go from `delivered` back to `preparing`).
-- **Repository interfaces in service layer**: Services depend on interfaces, not concrete repository types, enabling unit testing without a database.
+- Authentication uses one `users` table with a `role` column. Customers register through the API; seeded restaurant users log in through the same `/auth/login` endpoint.
+- Order totals are calculated on the server from menu prices. Each order item stores `price_at_time` so later menu price changes do not rewrite order history.
+- Order creation is transactional: the order and its items are inserted together.
+- Restaurant order endpoints derive the restaurant from the authenticated restaurant user, so a restaurant cannot read or update another restaurant's orders.
+- Status updates are conditional on the previously read status so concurrent requests cannot overwrite a newer order state with a stale transition.
 
-## What I'd Improve With More Time
+## Tradeoffs
 
-- **Real-time updates**: SSE endpoint for customers to receive live order status changes.
-- **Money representation**: Store and calculate prices as integer minor units or a decimal type instead of `float64`.
-- **Pagination**: Add cursor-based pagination to list endpoints.
-- **Request logging**: Structured request/response logging with correlation IDs.
-- **Graceful migration handling**: Separate migration CLI command instead of running on startup.
-- **CI pipeline**: GitHub Actions for lint, test, and build.
+This implementation focuses on the required ordering and restaurant order-management flows. The real-time status update bonus is intentionally left out so the core API, authorization rules, documentation, and tests stay complete and easy to review.
+
+For a larger production service, the first changes I would make are a non-floating-point money representation and pagination on list endpoints. Migrations run at startup here to keep setup short; in a deployed service I would run them as a separate release step. The request logging is intentionally small for this API, while richer structured logs and trace correlation would become more useful once there are downstream services to follow.

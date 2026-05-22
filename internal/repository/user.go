@@ -11,6 +11,7 @@ import (
 
 var ErrNotFound = errors.New("not found")
 var ErrDuplicateEmail = errors.New("email already exists")
+var ErrConflict = errors.New("conflict")
 
 type UserRepository struct {
 	db *sql.DB

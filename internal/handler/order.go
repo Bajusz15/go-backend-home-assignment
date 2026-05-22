@@ -136,6 +136,7 @@ func (h *OrderHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 // @Failure      401   {object}  ErrorResponse
 // @Failure      403   {object}  ErrorResponse
 // @Failure      404   {object}  ErrorResponse
+// @Failure      409   {object}  ErrorResponse
 // @Router       /orders/{id} [patch]
 func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
@@ -159,6 +160,8 @@ func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, err.Error())
 		case errors.Is(err, service.ErrNotYourOrder):
 			writeError(w, http.StatusForbidden, err.Error())
+		case errors.Is(err, service.ErrStatusChanged):
+			writeError(w, http.StatusConflict, err.Error())
 		default:
 			writeError(w, http.StatusBadRequest, err.Error())
 		}

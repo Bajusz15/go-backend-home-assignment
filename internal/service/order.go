@@ -17,6 +17,7 @@ var (
 	ErrItemWrongRestaurant = errors.New("all items must belong to the specified restaurant")
 	ErrRestaurantNotFound  = errors.New("restaurant not found")
 	ErrInvalidTransition   = errors.New("invalid status transition")
+	ErrStatusChanged       = errors.New("order status changed before the update completed")
 	ErrOrderNotFound       = errors.New("order not found")
 	ErrNotYourOrder        = errors.New("order does not belong to your restaurant")
 )
@@ -172,5 +173,9 @@ func (s *OrderService) UpdateStatus(ctx context.Context, userID, orderID string,
 		return nil, err
 	}
 
-	return s.orderRepo.UpdateStatus(ctx, orderID, newStatus)
+	updated, err := s.orderRepo.UpdateStatus(ctx, orderID, order.Status, newStatus)
+	if errors.Is(err, repository.ErrConflict) {
+		return nil, ErrStatusChanged
+	}
+	return updated, err
 }

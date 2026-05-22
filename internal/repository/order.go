@@ -111,18 +111,32 @@ func (r *OrderRepository) ListByRestaurantID(ctx context.Context, restaurantID s
 	return orders, rows.Err()
 }
 
-func (r *OrderRepository) UpdateStatus(ctx context.Context, id string, status model.OrderStatus) (*model.Order, error) {
+func (r *OrderRepository) UpdateStatus(ctx context.Context, id string, expected, status model.OrderStatus) (*model.Order, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
 	order := &model.Order{}
-	err := r.db.QueryRowContext(ctx,
+	err = tx.QueryRowContext(ctx,
 		`UPDATE orders SET status = $1, updated_at = NOW()
-		 WHERE id = $2
+		 WHERE id = $2 AND status = $3
 		 RETURNING id, customer_id, restaurant_id, status, total_price, created_at, updated_at`,
-		status, id,
+		status, id, expected,
 	).Scan(&order.ID, &order.CustomerID, &order.RestaurantID, &order.Status, &order.TotalPrice, &order.CreatedAt, &order.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
+		return nil, ErrConflict
 	}
-	return order, err
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	return order, nil
 }
 
 func (r *OrderRepository) findOrderItems(ctx context.Context, orderID string) ([]model.OrderItem, error) {

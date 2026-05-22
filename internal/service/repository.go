@@ -25,5 +25,5 @@ type orderRepository interface {
 	FindByID(ctx context.Context, id string) (*model.Order, error)
 	FindDetailByID(ctx context.Context, id string) (*model.OrderDetail, error)
 	ListByRestaurantID(ctx context.Context, restaurantID string) ([]model.Order, error)
-	UpdateStatus(ctx context.Context, id string, status model.OrderStatus) (*model.Order, error)
+	UpdateStatus(ctx context.Context, id string, expected, status model.OrderStatus) (*model.Order, error)
 }
